@@ -42,9 +42,22 @@ export class GeoJSONLayerState {
     /**
      * Call from your map's click handler to perform feature hit-testing.
      * Returns true and invokes onClick if a feature is found at the given position.
+     *
+     * Pass `pixelTolerance` and `zoom` to use a pixel-based hit threshold instead of
+     * the default world-coordinate tolerances. For example, `processClick(point, 10, zoom)`
+     * fires only when the click is within 10 pixels of the nearest segment.
      */
-    processClick(position: GeoPointInterface): boolean {
-        const feature = this.renderer?.hitTest(position.longitude, position.latitude) ?? null;
+    processClick(position: GeoPointInterface, pixelTolerance?: number, zoom?: number): boolean {
+        let lineTolSq: number | undefined;
+        let pointTolSq: number | undefined;
+        if (pixelTolerance !== undefined && zoom !== undefined && this.renderer) {
+            const worldSize = this.renderer.tileSize * Math.pow(2, zoom);
+            const lineTol  = pixelTolerance / worldSize;
+            const pointTol = (pixelTolerance * 2) / worldSize;
+            lineTolSq  = lineTol  * lineTol;
+            pointTolSq = pointTol * pointTol;
+        }
+        const feature = this.renderer?.hitTest(position.longitude, position.latitude, lineTolSq, pointTolSq) ?? null;
         if (!feature) return false;
         this.onClick?.(feature, position);
         return true;

@@ -7,6 +7,7 @@ import React, {
     useState,
 } from 'react';
 import {
+    LocalTileServer,
     OverlayCollector,
     TileScheme,
     TileServerRegistry,
@@ -88,8 +89,21 @@ export function GeoJSONLayer(props: GeoJSONLayerProps): React.ReactElement | nul
     // ── Register tile server ──────────────────────────────────────────────────
     useEffect(() => {
         tileServer.register(groupId, renderer);
-        setIsTileServerRegistered(true);
+
+        // `/__tiles/` URLs are only resolvable while the tile SW controls the page.
+        // Start it and wait before mounting RasterLayer to avoid 404s or timeouts.
+        let cancelled = false;
+        if (LocalTileServer.isServiceWorkerSupported()) {
+            tileServer.startServiceWorker('/tile-sw.js');
+            tileServer.waitForController().then(() => {
+                if (!cancelled) setIsTileServerRegistered(true);
+            });
+        } else {
+            setIsTileServerRegistered(true);
+        }
+
         return () => {
+            cancelled = true;
             tileServer.unregister(groupId);
             setIsTileServerRegistered(false);
         };

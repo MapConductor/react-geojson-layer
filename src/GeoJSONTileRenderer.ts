@@ -566,18 +566,19 @@ export class GeoJSONTileRenderer implements TileProvider {
 
     // ── Hit-testing ──────────────────────────────────────────────────────────
 
-    hitTest(longitude: number, latitude: number): GeoJSONFeatureData | null {
+    hitTest(longitude: number, latitude: number, lineTolSq?: number, pointTolSq?: number): GeoJSONFeatureData | null {
         const wx = lonToWorld(longitude);
         const wy = latToWorld(latitude);
+        const effectiveLineTol = lineTolSq !== undefined ? Math.sqrt(lineTolSq) : HIT_LINE_TOLERANCE;
         const s = this.state;
         const candidates = s.index
-            ? s.index.query(wx - HIT_LINE_TOLERANCE, wy - HIT_LINE_TOLERANCE, wx + HIT_LINE_TOLERANCE, wy + HIT_LINE_TOLERANCE)
+            ? s.index.query(wx - effectiveLineTol, wy - effectiveLineTol, wx + effectiveLineTol, wy + effectiveLineTol)
             : s.features.map((_, i) => i);
 
         for (let i = candidates.length - 1; i >= 0; i--) {
             const feature = s.features[candidates[i]];
-            if (!feature.bounds.intersects(wx - HIT_LINE_TOLERANCE, wy - HIT_LINE_TOLERANCE, wx + HIT_LINE_TOLERANCE, wy + HIT_LINE_TOLERANCE)) continue;
-            if (hitTestGeometry(wx, wy, feature.worldGeometry)) return feature.source;
+            if (!feature.bounds.intersects(wx - effectiveLineTol, wy - effectiveLineTol, wx + effectiveLineTol, wy + effectiveLineTol)) continue;
+            if (hitTestGeometry(wx, wy, feature.worldGeometry, lineTolSq, pointTolSq)) return feature.source;
         }
         return null;
     }
@@ -731,36 +732,41 @@ function computeBounds(geometry: WorldGeometry): WorldBounds {
 
 // ─── Hit testing geometry ─────────────────────────────────────────────────────
 
-function hitTestGeometry(wx: number, wy: number, geometry: WorldGeometry): boolean {
+function hitTestGeometry(wx: number, wy: number, geometry: WorldGeometry, lineTolSq?: number, pointTolSq?: number): boolean {
     switch (geometry.type) {
         case 'Point':
-            return distanceSq(wx, wy, geometry.wx, geometry.wy) <= HIT_POINT_TOLERANCE_SQ;
+            return distanceSq(wx, wy, geometry.wx, geometry.wy) <= (pointTolSq ?? HIT_POINT_TOLERANCE_SQ);
         case 'Points':
-            return hitTestPoints(wx, wy, geometry.points);
+            return hitTestPoints(wx, wy, geometry.points, pointTolSq);
         case 'Line':
-            return geometry.rings.some(ring => hitTestLine(wx, wy, ring.coords));
+            return geometry.rings.some(ring => hitTestLine(wx, wy, ring.coords, lineTolSq));
         case 'Polygon': {
+            if (lineTolSq !== undefined) {
+                return geometry.rings.some(ring => hitTestLine(wx, wy, ring.coords, lineTolSq));
+            }
             const rings = geometry.rings;
             return rings.length > 0 &&
                 pointInRing(wx, wy, rings[0].coords) &&
                 !rings.slice(1).some(hole => pointInRing(wx, wy, hole.coords));
         }
         case 'Collection':
-            return geometry.parts.some(part => hitTestGeometry(wx, wy, part));
+            return geometry.parts.some(part => hitTestGeometry(wx, wy, part, lineTolSq, pointTolSq));
         case 'Empty': return false;
     }
 }
 
-function hitTestPoints(wx: number, wy: number, coords: Float64Array): boolean {
+function hitTestPoints(wx: number, wy: number, coords: Float64Array, pointTolSq?: number): boolean {
+    const tolSq = pointTolSq ?? HIT_POINT_TOLERANCE_SQ;
     for (let i = 0; i < coords.length; i += 2) {
-        if (distanceSq(wx, wy, coords[i], coords[i + 1]) <= HIT_POINT_TOLERANCE_SQ) return true;
+        if (distanceSq(wx, wy, coords[i], coords[i + 1]) <= tolSq) return true;
     }
     return false;
 }
 
-function hitTestLine(wx: number, wy: number, coords: Float64Array): boolean {
+function hitTestLine(wx: number, wy: number, coords: Float64Array, lineTolSq?: number): boolean {
+    const tolSq = lineTolSq ?? HIT_LINE_TOLERANCE_SQ;
     for (let i = 2; i < coords.length; i += 2) {
-        if (segmentDistanceSq(wx, wy, coords[i - 2], coords[i - 1], coords[i], coords[i + 1]) <= HIT_LINE_TOLERANCE_SQ) return true;
+        if (segmentDistanceSq(wx, wy, coords[i - 2], coords[i - 1], coords[i], coords[i + 1]) <= tolSq) return true;
     }
     return false;
 }
