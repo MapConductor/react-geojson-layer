@@ -1,4 +1,4 @@
-import type { TileProvider, TileRequest } from '@mapconductor/js-sdk-core';
+import { createGeoPoint, type GeoPointInterface, type TileProvider, type TileRequest } from '@mapconductor/js-sdk-core';
 import type { GeoJSONFeatureData } from './GeoJSONFeature';
 import type { GeoJSONFeatureState } from './GeoJSONFeatureState';
 import type { GeoJSONGeometry, LonLat } from './GeoJSONGeometry';
@@ -146,6 +146,12 @@ function latToWorld(lat: number): number {
     const siny = Math.sin(lat * Math.PI / 180.0);
     const c = Math.max(-0.9999, Math.min(0.9999, siny));
     return 0.5 - Math.log((1.0 + c) / (1.0 - c)) / (4.0 * Math.PI);
+}
+
+function worldToLon(wx: number): number { return (wx - 0.5) * 360.0; }
+
+function worldToLat(wy: number): number {
+    return Math.atan(Math.sinh(Math.PI * (1.0 - 2.0 * wy))) * 180.0 / Math.PI;
 }
 
 function toPixel(world: number, worldSize: number, origin: number): number {
@@ -566,22 +572,38 @@ export class GeoJSONTileRenderer implements TileProvider {
 
     // ── Hit-testing ──────────────────────────────────────────────────────────
 
-    hitTest(longitude: number, latitude: number, lineTolSq?: number, pointTolSq?: number): GeoJSONFeatureData | null {
+    hitTest(longitude: number, latitude: number, lineTolSq?: number, pointTolSq?: number): GeoJSONHitTestResult | null {
         const wx = lonToWorld(longitude);
         const wy = latToWorld(latitude);
-        const effectiveLineTol = lineTolSq !== undefined ? Math.sqrt(lineTolSq) : HIT_LINE_TOLERANCE;
+        const lineTolerance = lineTolSq !== undefined ? Math.sqrt(lineTolSq) : HIT_LINE_TOLERANCE;
+        const pointTolerance = pointTolSq !== undefined ? Math.sqrt(pointTolSq) : HIT_POINT_TOLERANCE;
+        const tolerance = Math.max(lineTolerance, pointTolerance);
         const s = this.state;
         const candidates = s.index
-            ? s.index.query(wx - effectiveLineTol, wy - effectiveLineTol, wx + effectiveLineTol, wy + effectiveLineTol)
+            ? s.index.query(wx - tolerance, wy - tolerance, wx + tolerance, wy + tolerance)
             : s.features.map((_, i) => i);
 
         for (let i = candidates.length - 1; i >= 0; i--) {
             const feature = s.features[candidates[i]];
-            if (!feature.bounds.intersects(wx - effectiveLineTol, wy - effectiveLineTol, wx + effectiveLineTol, wy + effectiveLineTol)) continue;
-            if (hitTestGeometry(wx, wy, feature.worldGeometry, lineTolSq, pointTolSq)) return feature.source;
+            if (!feature.bounds.intersects(wx - tolerance, wy - tolerance, wx + tolerance, wy + tolerance)) continue;
+            const hit = hitTestGeometry(wx, wy, feature.worldGeometry, lineTolSq, pointTolSq);
+            if (hit) {
+                return {
+                    feature: feature.source,
+                    position: createGeoPoint({
+                        longitude: worldToLon(hit.wx),
+                        latitude: worldToLat(hit.wy),
+                    }),
+                };
+            }
         }
         return null;
     }
+}
+
+export interface GeoJSONHitTestResult {
+    readonly feature: GeoJSONFeatureData;
+    readonly position: GeoPointInterface;
 }
 
 // ─── Build render features ───────────────────────────────────────────────────
@@ -732,43 +754,75 @@ function computeBounds(geometry: WorldGeometry): WorldBounds {
 
 // ─── Hit testing geometry ─────────────────────────────────────────────────────
 
-function hitTestGeometry(wx: number, wy: number, geometry: WorldGeometry, lineTolSq?: number, pointTolSq?: number): boolean {
+interface GeometryHit {
+    readonly wx: number;
+    readonly wy: number;
+    readonly distanceSq: number;
+}
+
+function hitTestGeometry(wx: number, wy: number, geometry: WorldGeometry, lineTolSq?: number, pointTolSq?: number): GeometryHit | null {
     switch (geometry.type) {
-        case 'Point':
-            return distanceSq(wx, wy, geometry.wx, geometry.wy) <= (pointTolSq ?? HIT_POINT_TOLERANCE_SQ);
+        case 'Point': {
+            const distance = distanceSq(wx, wy, geometry.wx, geometry.wy);
+            return distance <= (pointTolSq ?? HIT_POINT_TOLERANCE_SQ)
+                ? { wx: geometry.wx, wy: geometry.wy, distanceSq: distance }
+                : null;
+        }
         case 'Points':
             return hitTestPoints(wx, wy, geometry.points, pointTolSq);
         case 'Line':
-            return geometry.rings.some(ring => hitTestLine(wx, wy, ring.coords, lineTolSq));
+            return hitTestRings(wx, wy, geometry.rings, lineTolSq);
         case 'Polygon': {
             if (lineTolSq !== undefined) {
-                return geometry.rings.some(ring => hitTestLine(wx, wy, ring.coords, lineTolSq));
+                return hitTestRings(wx, wy, geometry.rings, lineTolSq);
             }
             const rings = geometry.rings;
-            return rings.length > 0 &&
+            const containsPoint = rings.length > 0 &&
                 pointInRing(wx, wy, rings[0].coords) &&
                 !rings.slice(1).some(hole => pointInRing(wx, wy, hole.coords));
+            return containsPoint ? { wx, wy, distanceSq: 0 } : null;
         }
-        case 'Collection':
-            return geometry.parts.some(part => hitTestGeometry(wx, wy, part, lineTolSq, pointTolSq));
-        case 'Empty': return false;
+        case 'Collection': {
+            let best: GeometryHit | null = null;
+            for (const part of geometry.parts) {
+                const hit = hitTestGeometry(wx, wy, part, lineTolSq, pointTolSq);
+                if (hit && (!best || hit.distanceSq < best.distanceSq)) best = hit;
+            }
+            return best;
+        }
+        case 'Empty': return null;
     }
 }
 
-function hitTestPoints(wx: number, wy: number, coords: Float64Array, pointTolSq?: number): boolean {
+function hitTestPoints(wx: number, wy: number, coords: Float64Array, pointTolSq?: number): GeometryHit | null {
     const tolSq = pointTolSq ?? HIT_POINT_TOLERANCE_SQ;
+    let best: GeometryHit | null = null;
     for (let i = 0; i < coords.length; i += 2) {
-        if (distanceSq(wx, wy, coords[i], coords[i + 1]) <= tolSq) return true;
+        const distance = distanceSq(wx, wy, coords[i], coords[i + 1]);
+        if (distance <= tolSq && (!best || distance < best.distanceSq)) {
+            best = { wx: coords[i], wy: coords[i + 1], distanceSq: distance };
+        }
     }
-    return false;
+    return best;
 }
 
-function hitTestLine(wx: number, wy: number, coords: Float64Array, lineTolSq?: number): boolean {
-    const tolSq = lineTolSq ?? HIT_LINE_TOLERANCE_SQ;
-    for (let i = 2; i < coords.length; i += 2) {
-        if (segmentDistanceSq(wx, wy, coords[i - 2], coords[i - 1], coords[i], coords[i + 1]) <= tolSq) return true;
+function hitTestRings(wx: number, wy: number, rings: WorldRing[], lineTolSq?: number): GeometryHit | null {
+    let best: GeometryHit | null = null;
+    for (const ring of rings) {
+        const hit = hitTestLine(wx, wy, ring.coords, lineTolSq);
+        if (hit && (!best || hit.distanceSq < best.distanceSq)) best = hit;
     }
-    return false;
+    return best;
+}
+
+function hitTestLine(wx: number, wy: number, coords: Float64Array, lineTolSq?: number): GeometryHit | null {
+    const tolSq = lineTolSq ?? HIT_LINE_TOLERANCE_SQ;
+    let best: GeometryHit | null = null;
+    for (let i = 2; i < coords.length; i += 2) {
+        const hit = closestPointOnSegment(wx, wy, coords[i - 2], coords[i - 1], coords[i], coords[i + 1]);
+        if (hit.distanceSq <= tolSq && (!best || hit.distanceSq < best.distanceSq)) best = hit;
+    }
+    return best;
 }
 
 function pointInRing(wx: number, wy: number, ring: Float64Array): boolean {
@@ -783,9 +837,11 @@ function pointInRing(wx: number, wy: number, ring: Float64Array): boolean {
     return inside;
 }
 
-function segmentDistanceSq(px: number, py: number, ax: number, ay: number, bx: number, by: number): number {
+function closestPointOnSegment(px: number, py: number, ax: number, ay: number, bx: number, by: number): GeometryHit {
     const dx = bx - ax, dy = by - ay;
-    if (dx === 0 && dy === 0) return distanceSq(px, py, ax, ay);
+    if (dx === 0 && dy === 0) return { wx: ax, wy: ay, distanceSq: distanceSq(px, py, ax, ay) };
     const t = Math.max(0, Math.min(1, ((px - ax) * dx + (py - ay) * dy) / (dx * dx + dy * dy)));
-    return distanceSq(px, py, ax + t * dx, ay + t * dy);
+    const wx = ax + t * dx;
+    const wy = ay + t * dy;
+    return { wx, wy, distanceSq: distanceSq(px, py, wx, wy) };
 }

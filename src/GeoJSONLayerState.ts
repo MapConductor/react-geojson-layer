@@ -12,6 +12,10 @@ export class GeoJSONLayerState {
     visible: boolean;
     minZoom: number;
     maxZoom: number;
+    /** Android native provider factory id. */
+    readonly styleProviderId?: string | null;
+    readonly onLoadStart?: (() => void) | null;
+    readonly onLoadComplete?: ((error: Error | null) => void) | null;
     readonly onClick?: ((feature: GeoJSONFeatureData, position: GeoPointInterface) => void) | null;
 
     /** @internal set by GeoJSONLayer */
@@ -26,6 +30,9 @@ export class GeoJSONLayerState {
         visible?: boolean;
         minZoom?: number;
         maxZoom?: number;
+        styleProviderId?: string | null;
+        onLoadStart?: (() => void) | null;
+        onLoadComplete?: ((error: Error | null) => void) | null;
         onClick?: ((feature: GeoJSONFeatureData, position: GeoPointInterface) => void) | null;
     } = {}) {
         this.opacity = params.opacity ?? GeoJSONDefaults.DEFAULT_OPACITY;
@@ -36,6 +43,9 @@ export class GeoJSONLayerState {
         this.visible = params.visible ?? true;
         this.minZoom = params.minZoom ?? 0;
         this.maxZoom = params.maxZoom ?? 22;
+        this.styleProviderId = params.styleProviderId ?? null;
+        this.onLoadStart = params.onLoadStart ?? null;
+        this.onLoadComplete = params.onLoadComplete ?? null;
         this.onClick = params.onClick ?? null;
     }
 
@@ -57,9 +67,9 @@ export class GeoJSONLayerState {
             lineTolSq  = lineTol  * lineTol;
             pointTolSq = pointTol * pointTol;
         }
-        const feature = this.renderer?.hitTest(position.longitude, position.latitude, lineTolSq, pointTolSq) ?? null;
-        if (!feature) return false;
-        this.onClick?.(feature, position);
+        const hit = this.renderer?.hitTest(position.longitude, position.latitude, lineTolSq, pointTolSq) ?? null;
+        if (!hit) return false;
+        this.onClick?.(hit.feature, hit.position);
         return true;
     }
 }
