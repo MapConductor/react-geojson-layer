@@ -47,13 +47,13 @@ export interface GeoJSONLayerProps {
 let nextLayerId = 1;
 
 export function GeoJSONLayer(props: GeoJSONLayerProps): React.ReactElement | null {
-  if (Platform.OS !== 'android') {
+  if (Platform.OS !== 'android' && Platform.OS !== 'ios') {
     return <WebGeoJSONLayer {...props} />;
   }
-  return <AndroidGeoJSONLayer {...props} />;
+  return <NativeGeoJSONLayer {...props} />;
 }
 
-function AndroidGeoJSONLayer(props: GeoJSONLayerProps): React.ReactElement | null {
+function NativeGeoJSONLayer(props: GeoJSONLayerProps): React.ReactElement | null {
   const {
     state: stateProp,
     features = EMPTY_FEATURES,

@@ -7,6 +7,9 @@ module.exports = {
           'import com.mapconductor.react.geojson.MapConductorGeoJSONPackage;',
         packageInstance: 'new MapConductorGeoJSONPackage()',
       },
+      ios: {
+        sourceDir: './ios',
+      },
     },
   },
 };

@@ -19,6 +19,8 @@
   },
   "files": [
     "android",
+    "ios",
+    "MapConductorReactGeoJSONLayer.podspec",
     "react-native.config.js",
     "dist"
   ],
