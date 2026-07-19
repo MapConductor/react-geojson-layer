@@ -7,7 +7,7 @@ import React, {
   useReducer,
   useRef,
 } from 'react';
-import { Platform } from 'react-native';
+import { NativeModules, Platform } from 'react-native';
 import { OverlayCollector, type GeoPointInterface } from '@mapconductor/js-sdk-core';
 import {
   useNativeMapExtension,
@@ -49,6 +49,11 @@ let nextLayerId = 1;
 export function GeoJSONLayer(props: GeoJSONLayerProps): React.ReactElement | null {
   if (Platform.OS !== 'android' && Platform.OS !== 'ios') {
     return <WebGeoJSONLayer {...props} />;
+  }
+  if (Platform.OS === 'ios') {
+    // Instantiating this legacy module registers the GeoJSON renderer. Bridgeless/new-
+    // architecture apps otherwise keep the module lazy because it exposes no JS methods.
+    void NativeModules.MapConductorGeoJSONPackage;
   }
   return <NativeGeoJSONLayer {...props} />;
 }
@@ -106,7 +111,7 @@ function NativeGeoJSONLayer(props: GeoJSONLayerProps): React.ReactElement | null
         },
       },
     }),
-    [disableTileServerCache, dynamicFeatures, features, layerId, state, tileSize],
+    [disableTileServerCache, dynamicFeatures, features, layerId, sourceUri, state, tileSize],
   );
 
   const handleEvent = useCallback(

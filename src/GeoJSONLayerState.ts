@@ -12,7 +12,7 @@ export class GeoJSONLayerState {
     visible: boolean;
     minZoom: number;
     maxZoom: number;
-    /** Android native provider factory id. */
+    /** Native provider factory id registered by the Android or iOS application. */
     readonly styleProviderId?: string | null;
     readonly onLoadStart?: (() => void) | null;
     readonly onLoadComplete?: ((error: Error | null) => void) | null;

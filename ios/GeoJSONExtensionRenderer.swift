@@ -12,6 +12,7 @@ final class GeoJSONExtensionRenderer: NativeMapExtensionRenderer {
     private var layerState: GeoJSONLayerState?
     private var features: [GeoJSONFeature] = []
     private var options = Options.Default
+    private var clickConsumed = false
 
     init(extensionId: String, eventSink: @escaping NativeMapExtensionEventSink) {
         self.extensionId = extensionId
@@ -29,6 +30,7 @@ final class GeoJSONExtensionRenderer: NativeMapExtensionRenderer {
             state = GeoJSONLayerState(tileSize: nextOptions.tileSize)
             state.onClick = { [weak self] feature, point in
                 guard let self, self.options.onClickEnabled else { return }
+                self.clickConsumed = true
                 self.eventSink(self.extensionId, "click", [
                     "feature": Self.featurePayload(feature),
                     "position": mcPointPayload(point)
@@ -52,11 +54,27 @@ final class GeoJSONExtensionRenderer: NativeMapExtensionRenderer {
         state.layerStyle = nextOptions.layerStyle
 
         let sourceUri = mcString(payload["sourceUri"])
+        if let styleProviderId = nextOptions.styleProviderId,
+           let styleProvider = try? GeoJSONStyleProviderRegistry.create(
+               id: styleProviderId,
+               sourceUri: sourceUri
+           ) {
+            state.styleProvider = styleProvider
+        } else {
+            state.styleProvider = DefaultGeoJSONStyleProvider.shared
+        }
         if let sourceUri, !sourceUri.isEmpty {
             features = Self.decodeSourceUri(sourceUri)
         } else {
             features = Self.decodeFeatures(payload["features"]) + Self.decodeFeatures(payload["dynamicFeatures"])
         }
+    }
+
+    func onMapClick(_ point: GeoPoint, zoom: Double) -> Bool {
+        guard options.onClickEnabled, let layerState else { return false }
+        clickConsumed = false
+        layerState.processClick(geoPoint: point, pixelTolerance: 10, zoom: zoom)
+        return clickConsumed
     }
 
     func dispose() {}
@@ -80,11 +98,11 @@ final class GeoJSONExtensionRenderer: NativeMapExtensionRenderer {
     }
 
     private static func decodeZipUri(_ uriString: String) -> [GeoJSONFeature] {
-        guard let path = filePath(for: uriString), let archive = try? Data(contentsOf: URL(fileURLWithPath: path)) else { return [] }
-        // Minimal zip support is out of scope for this pass; unzip ahead of time on the JS side
-        // and pass a plain .geojson `sourceUri` instead. Fall back to treating the archive bytes
-        // as a raw GeoJSON document so this doesn't silently produce nothing for a mislabeled URI.
-        return GeoJSONParser.parse(data: archive)
+        guard let geoJSON = try? GeoJSONZipArchive.firstEntryData(
+            sourceUri: uriString,
+            pathExtension: "geojson"
+        ) else { return [] }
+        return GeoJSONParser.parse(data: geoJSON)
     }
 
     private static func openUri(_ uriString: String) -> InputStream? {
@@ -196,6 +214,7 @@ final class GeoJSONExtensionRenderer: NativeMapExtensionRenderer {
         let minZoom: Int
         let maxZoom: Int
         let onClickEnabled: Bool
+        let styleProviderId: String?
         let layerStyle: GeoJSONTileRenderer.LayerStyle
         let tileSize: Int
 
@@ -204,6 +223,7 @@ final class GeoJSONExtensionRenderer: NativeMapExtensionRenderer {
             minZoom: 0,
             maxZoom: GeoJSONDefaults.defaultMaxZoom,
             onClickEnabled: false,
+            styleProviderId: nil,
             layerStyle: GeoJSONTileRenderer.LayerStyle(),
             tileSize: GeoJSONDefaults.defaultTileSize
         )
@@ -215,6 +235,7 @@ final class GeoJSONExtensionRenderer: NativeMapExtensionRenderer {
                 minZoom: mcInt(map["minZoom"], default: Default.minZoom),
                 maxZoom: mcInt(map["maxZoom"], default: Default.maxZoom),
                 onClickEnabled: mcBool(map["onClickEnabled"], default: false),
+                styleProviderId: mcString(map["styleProviderId"]),
                 layerStyle: GeoJSONTileRenderer.LayerStyle(
                     strokeColor: mcColor(argb: map["strokeColor"], default: GeoJSONDefaults.defaultStrokeColor),
                     fillColor: mcColor(argb: map["fillColor"], default: GeoJSONDefaults.defaultFillColor),

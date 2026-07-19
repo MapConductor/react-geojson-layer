@@ -13,6 +13,7 @@ Pod::Spec.new do |s|
   s.platform = :ios, "15.0"
   s.source_files = "ios/*.{h,m,mm,swift}"
   s.vendored_frameworks = "ios/Frameworks/MapConductorGeoJSON.xcframework"
+  s.libraries = "z"
   s.dependency "React-Core"
   s.dependency "MapConductorReactNativeCore"
 end
