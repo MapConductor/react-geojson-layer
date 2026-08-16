@@ -12,7 +12,7 @@ Pod::Spec.new do |s|
   s.source = { :path => __dir__ }
   s.platform = :ios, "16.1"
   s.source_files = "ios/*.{h,m,mm,swift}"
-  # MapConductorGeoJSON is a source pod (see ios-sdk/ios-geojson-layer's podspec), not a vendored
+  # MapConductorGeoJSON is a source pod (see ios-sdk/ios-geojson's podspec), not a vendored
   # prebuilt xcframework - see ios-sdk/CLAUDE.md's "iOS Provider Distribution" section.
   s.dependency "React-Core"
   s.dependency "MapConductorCore"

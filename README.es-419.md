@@ -1,19 +1,19 @@
 [English](./README.md) | [日本語](./README.ja.md) | Español (Latinoamérica)
 
-# @mapconductor/react-geojson-layer
+# @mapconductor/react-geojson
 
 Extensión de capa GeoJSON para el SDK de React de MapConductor. Renderiza features de GeoJSON (puntos, líneas, polígonos — incluidos los agujeros) como una superposición teselada dentro de cualquier vista de mapa de proveedor (`react-for-googlemaps`, `react-for-maplibre`, `react-for-here`, …), con estilos por feature y hit-testing de clics. Funciona en la web y, mediante los módulos de Android/iOS incluidos, en React Native.
 
 ## Instalación
 
 ```shell
-npm install @mapconductor/react-geojson-layer
+npm install @mapconductor/react-geojson
 ```
 
 `@mapconductor/js-sdk-core` y `@mapconductor/js-sdk-react` se instalan automáticamente como dependencias. Tu código importa directamente de ambos, así que con el `node_modules` estricto (aislado) de pnpm — o siempre que prefieras declarar todo lo que importas — instálalos explícitamente:
 
 ```shell
-npm install @mapconductor/react-geojson-layer @mapconductor/js-sdk-core @mapconductor/js-sdk-react
+npm install @mapconductor/react-geojson @mapconductor/js-sdk-core @mapconductor/js-sdk-react
 ```
 
 También necesitas un paquete de proveedor (cualquier `@mapconductor/react-for-*`) para alojar la vista de mapa.
@@ -30,7 +30,7 @@ import {
   GeoJSONLayerState,
   GeoJSONParser,
   colorArgb,
-} from '@mapconductor/react-geojson-layer';
+} from '@mapconductor/react-geojson';
 import {
   MapLibreDesign,
   MapLibreMapView2D,

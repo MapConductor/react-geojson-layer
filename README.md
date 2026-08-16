@@ -1,6 +1,6 @@
 English | [日本語](./README.ja.md) | [Español (Latinoamérica)](./README.es-419.md)
 
-# @mapconductor/react-geojson-layer
+# @mapconductor/react-geojson
 
 GeoJSON layer extension for the MapConductor React SDK. Renders GeoJSON
 features (points, lines, polygons — holes included) as a tiled overlay inside
@@ -11,7 +11,7 @@ the web and, through the bundled Android/iOS modules, in React Native.
 ## Installation
 
 ```shell
-npm install @mapconductor/react-geojson-layer
+npm install @mapconductor/react-geojson
 ```
 
 `@mapconductor/js-sdk-core` and `@mapconductor/js-sdk-react` are installed
@@ -20,7 +20,7 @@ pnpm's strict (isolated) `node_modules` — or whenever you prefer to declare
 everything you import — install them explicitly instead:
 
 ```shell
-npm install @mapconductor/react-geojson-layer @mapconductor/js-sdk-core @mapconductor/js-sdk-react
+npm install @mapconductor/react-geojson @mapconductor/js-sdk-core @mapconductor/js-sdk-react
 ```
 
 You also need a provider package (any `@mapconductor/react-for-*`) to host the
@@ -39,7 +39,7 @@ import {
   GeoJSONLayerState,
   GeoJSONParser,
   colorArgb,
-} from '@mapconductor/react-geojson-layer';
+} from '@mapconductor/react-geojson';
 import {
   MapLibreDesign,
   MapLibreMapView2D,

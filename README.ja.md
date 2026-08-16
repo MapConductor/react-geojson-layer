@@ -1,19 +1,19 @@
 [English](./README.md) | 日本語 | [Español (Latinoamérica)](./README.es-419.md)
 
-# @mapconductor/react-geojson-layer
+# @mapconductor/react-geojson
 
 MapConductor React SDK の GeoJSON レイヤー拡張です。GeoJSON のフィーチャ(ポイント・ライン・ポリゴン。穴付きポリゴンにも対応)を、任意のプロバイダのマップビュー(`react-for-googlemaps`、`react-for-maplibre`、`react-for-here` など)の中にタイル化されたオーバーレイとして描画し、フィーチャ単位のスタイル指定とクリックのヒットテストをサポートします。Web と、同梱の Android/iOS モジュールを通じて React Native の両方で動作します。
 
 ## インストール
 
 ```shell
-npm install @mapconductor/react-geojson-layer
+npm install @mapconductor/react-geojson
 ```
 
 `@mapconductor/js-sdk-core` と `@mapconductor/js-sdk-react` は依存関係として自動的にインストールされます。ただしアプリケーションコードはこの2つから直接 import するため、pnpm の strict(isolated)な `node_modules` を使う場合や、import するものをすべて明示的に宣言したい場合は、次のように明示的にインストールしてください:
 
 ```shell
-npm install @mapconductor/react-geojson-layer @mapconductor/js-sdk-core @mapconductor/js-sdk-react
+npm install @mapconductor/react-geojson @mapconductor/js-sdk-core @mapconductor/js-sdk-react
 ```
 
 マップビューをホストするプロバイダパッケージ(いずれかの `@mapconductor/react-for-*`)も必要です。
@@ -30,7 +30,7 @@ import {
   GeoJSONLayerState,
   GeoJSONParser,
   colorArgb,
-} from '@mapconductor/react-geojson-layer';
+} from '@mapconductor/react-geojson';
 import {
   MapLibreDesign,
   MapLibreMapView2D,
